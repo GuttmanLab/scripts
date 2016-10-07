@@ -107,6 +107,8 @@ with pysam.AlignmentFile(args.input1, "rb") as input_file1,\
             else:
                 score1 = int(read1.get_tag("AS"))
                 score2 = int(read2.get_tag("AS")) 
+
+                diff = score1 - score2
             
                 if diff <= tmax and diff >= tmin:
                     ambiguous_file1.write(read1)
