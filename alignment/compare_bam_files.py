@@ -24,12 +24,12 @@ parser.add_argument('--ambiguous1', action = 'store', metavar = 'FILE',
                     help = 'Output BAM file for ambiguous input-file-1 records')
 parser.add_argument('--ambiguous2', action = 'store', metavar = 'FILE',
                     help = 'Output BAM file for ambiguous input-file-2 records')
-parser.add_argument('--threshold_max', action = 'store', metavar = 'X',
+parser.add_argument('--threshold_max', action = 'store', metavar = 'Y',
                     type = int, default = 0,
                     help = ('If the difference in scores falls within the ' +
                             'range [X, Y] (inclusive), classify the reads as' +
                             'ambiguous. (default = 0)'))
-parser.add_argument('--threshold_min', action = 'store', metavar = 'Y',
+parser.add_argument('--threshold_min', action = 'store', metavar = 'X',
                     type = int, default = 0,
                     help = ('If the difference in scores falls within the ' +
                             'range [X, Y] (inclusive), classify the reads as' +
