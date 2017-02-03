@@ -34,28 +34,21 @@ def parse_arguments():
 def get_contacts(args):
     contacts = defaultdict(lambda : Counter())
     total_groups = 0
-
     with open(args.input, 'r') as f:
         for line in f:
             reads = line.split()[1:]
-
             if len(reads) > args.max_cluster_size:
                 continue
-
             bins = set()
-
             for read in reads:
                 chrom, position = read.split(':')
                 if chrom == args.chromosome:
                     read_bin = int(position) // args.resolution
                     bins.add(read_bin)
-
             for bin1, bin2 in combinations(bins, 2):
                 contacts[bin1][bin2] += 1
                 contacts[bin2][bin1] += 1
-
     return contacts
-                
 
 def write_contacts_to_file(contacts, args):
     with open(args.output, 'w') as f:

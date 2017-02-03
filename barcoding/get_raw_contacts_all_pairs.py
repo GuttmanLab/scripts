@@ -59,29 +59,22 @@ def parse_arguments():
 
     return parser.parse_args()
 
-
 def get_contacts(args):
-
     contacts = defaultdict(lambda : Counter())
     total_groups = 0
-
     with open(args.input, 'r') as f:
         for line in f:
             reads = line.split()[1:]
-
             # Check if cluster size is valid
             if not args.min_cluster_size <= len(reads) <= args.max_cluster_size:
                 continue
-
             granules = set()
-
             # For reads on this chromosome, granulate the read positions.
             for read in reads:
                 chrom, position = read.split(':')
                 if chrom == args.chromosome:
                     granule = int(position) // args.granularity
                     granules.add(granule)
-
             # Scale-up the granulated read positions to the bin-resolution and
             for granule1, granule2 in combinations(granules, 2):
                 bin1 = (granule1 * 1000) // args.resolution
@@ -89,7 +82,6 @@ def get_contacts(args):
                 if bin1 != bin2:
                     contacts[bin1][bin2] += 1
                     contacts[bin2][bin1] += 1
-
     return contacts
                 
 def write_contacts_to_file(contacts, args):
