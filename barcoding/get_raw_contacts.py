@@ -1,70 +1,69 @@
-import sys
 from collections import Counter
 from collections import defaultdict
 from itertools import combinations
+import argparse
 
-barcode_groups = sys.argv[1]
-bin_size = int(sys.argv[2])
-max_size = int(sys.argv[3])
-output_dir = sys.argv[4]
+def main():
+    args = parse_arguments()
+    contacts = get_contacts(args)
+    write_contacts_to_file(contacts, args)
 
-LOG_STEP = 100000 # Output progress every LOG_STEP barcodes
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description = 'Generates an intrachromosomal raw-contacts file ' +
+        'from a barcode-groups file.')
 
-chromosomes = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chrX']
+    parser.add_argument('-i', '--input', metavar = 'FILE', action = 'store',
+        help = 'The input barcode-groups file.')
 
-#if human:
-#    chromosomes.extend(['chr20', 'chr21', 'chr22'])
+    parser.add_argument('-o', '--output', metavar = 'FILE', action = 'store',
+        help = 'The output raw-contacts file.')
 
-for chromosome in chromosomes:
+    parser.add_argument('-c', '--chromosome', metavar = 'STRING',
+        action = 'store', help = 'The chromosome to consider.')
+
+    parser.add_argument('--max_cluster_size', metavar = 'INT', type = int,
+        action = 'store', help = 'The maximum read-cluster size to ' +
+        'consider. Ignore clusters larger than INT.')
+
+    parser.add_argument('-r', '--resolution', metavar = 'INT', type = int,
+        action = 'store', help = 'The resolution in bp.')
+
+    return parser.parse_args()
+
+def get_contacts(args):
     contacts = defaultdict(lambda : Counter())
     total_groups = 0
-    total_singles = Counter()
 
-    with open(barcode_groups, 'r') as f:
-        file_barcode_count = 0   # Number of barcodes (lines) in file
-        chrom_barcode_count = 0  # Number of barcodes which contain a read
-                                 # on this chromosome
+    with open(args.input, 'r') as f:
         for line in f:
-            file_barcode_count += 1
-            chrom_barcode_count += 1
-            reads = line.split()[2:]
+            reads = line.split()[1:]
 
-            # Skip "mega-clusters"
-            if len(reads) > max_size:
+            if len(reads) > args.max_cluster_size:
                 continue
 
-            bins = set() # Unique bins on this chromosome for this barcode
+            bins = set()
 
             for read in reads:
                 chrom, position = read.split(':')
-                if chrom == chromosome:
-                    read_bin = int(position) // bin_size
-                    bins.add((chrom, read_bin))
+                if chrom == args.chromosome:
+                    read_bin = int(position) // args.resolution
+                    bins.add(read_bin)
 
-            # Tally contacts in this line
             for bin1, bin2 in combinations(bins, 2):
                 contacts[bin1][bin2] += 1
                 contacts[bin2][bin1] += 1
-                total_singles[bin1] += 1
-                total_singles[bin2] += 1
-                total_groups += 1
 
-            # Log progress
-            if file_barcode_count % LOG_STEP == 0:
-                print(chromosome + ":\t" + str(file_barcode_count))
+    return contacts
+                
 
-    print("Chromosome: " + chromosome)
-    print("Total number of barcodes in file: " + str(file_barcode_count))
-    print("Total number of barcodes in chromosome: " + str(chrom_barcode_count))
-    print("Total number of pairwise contacts within chromosome: " + str(total_groups))
+def write_contacts_to_file(contacts, args):
+    with open(args.output, 'w') as f:
+        for position1, second_positions in contacts.items():
+            for position2, count in second_positions.items():
+                f.write(args.chromosome + ' ' + str(position1) + '\t' +
+                        args.chromosome + ' ' + str(position2) + '\t' +
+                        str(count) + '\n')
 
-    # Output to file
-    with open(output_dir + '/' + barcode_groups + '.' + str(bin_size) + '.' + str(max_size) + '.' + chromosome + '.raw_contacts', 'w') as f:
-
-        for (chrom1, position1), inner_dict in contacts.items():
-            for (chrom2, position2), count in inner_dict.items():
-                f.write(chrom1 + ' ' + str(position1) + '\t' +
-                        chrom2 + ' ' + str(position2) + '\t' +
-                        str(count) +'\t' +
-                        str(total_singles[(chrom1, position1)]) +
-                        '\n')
+if __name__ == "__main__":
+    main()

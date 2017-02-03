@@ -3,61 +3,58 @@ import argparse
 import pysam
 import re
 
-parser = argparse.ArgumentParser(description = 'Generates a "raw contacts" file from a BAM file.')
+def main():
+    args = parse_arguments()
+    barcode_groups = get_barcode_groups(args)
+    write_barcode_groups_to_file(barcode_groups, args)
 
-parser.add_argument('-i', '--input', metavar = FILE, action = "store",
-                    help = "The input BAM file. The pysam library requires this to be sorted and indexed.")
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description = 'Generates a barcode-groups file from a BAM file.')
+    parser.add_argument('-i', '--input',
+                        metavar = "FILE",
+                        action = "store",
+                        help = "The input BAM file.")
+    parser.add_argument('-o', '--output',
+                        metavar = "FILE",
+                        action = "store",
+                        help = "The output barcode-groups file.")
+    parser.add_argument('-n', '--num_barcodes',
+                        metavar = 'INT',
+                        type = int,
+                        action = 'store',
+                        help = "The number of barcodes contained in the name " +
+                               "of name of the BAM record.")
+    return parser.parse_args()
 
-parser.add_argument('-o', '--output', metavar = FILE, action = "store",
-                    help = "The output raw-contacts file.")
+def get_barcode_groups(args):
+    barcode_groups = defaultdict(set)
+    total = 0
+    pattern = re.compile('::' + args.num_barcodes * '\[(\w+)\]')
+    with pysam.AlignmentFile(args.input, "rb") as bamfile:
+        for read in bamfile.fetch(until_eof = True):
+            total += 1
+            chromosome = read.reference_name
+            position = read.reference_start
+            name = read.query_name
+            match = pattern.search(name)
+            barcode_group = ".".join(match.groups())
+            barcode_groups[barcode_group].add((chromosome, position))
+    print_number_of_duplicates(barcode_groups, total)
+    print "File has " + str(len(barcode_groups)) + " barcode-groups."
+    return barcode_groups
 
-parser.add_argument('-n', '--num_barcodes', metavar = N, action = "store", type = int, default = 5,
-                    help = "The number of barcodes contained in the name of each BAM record. (default = 5)")
+def print_number_of_duplicates(barcode_groups, total):
+    non_duplicates = 0
+    for barcode_key, positions in barcode_groups.iteritems():
+        non_duplicates += len(positions)
+    print "Duplicates: " + str(total - non_duplicates)
 
-args = parser.parse_args()
+def write_barcode_groups_to_file(barcode_groups, args):
+    with open(args.output, 'w') as outfile:
+        for barcode, positions in barcode_groups.iteritems():
+            strings = [(lambda x: x[0] + ":" + str(x[1]))(pos) for pos in positions]
+            outfile.write(barcode + "\t" + "\t".join(strings) + "\n")
 
-# barcode_groups :: Dict Protocol (Dict Barcode (Set Position))
-barcode_groups = defaultdict(lambda: defaultdict(set))
-total = 0
-multimappers = 0
-pattern = re.compile('::' + args.num_barcodes * '\[(\w+)\]')
-
-# Read through BAM file
-with pysam.AlignmentFile(args.input, "rb") as samfile:
-    for read in samfile.fetch():
-
-        total += 1
-
-        chromosome = read.reference_name
-        position   = read.reference_start
-        mapq       = read.mapping_quality
-        name       = read.query_name
-
-        # Skip multimappers, defined by MAPQ score
-        if mapq < 2:
-            multimappers += 1
-            continue
-
-        match = pattern.search(name)
-
-        # Duplicates are skipped automatically since the datastructure is a set.
-        protocol = match.groups()[0][0]
-        barcode = ".".join(match.groups()[1:])
-        barcode_groups[protocol][barcode].add(chromosome + ":" + str(position))
-
-# Count the number of non-duplicates by getting the size of each
-# protocol-barcode set
-non_duplicates = 0
-for protocol_key, barcode_dict in barcode_groups.iteritems():
-    for barcode_key, position_set in barcode_dict.iteritems():
-        non_duplicates += len(position_set)
-
-print "Multimappers: " + str(multimappers)
-print "Duplicates: " + str(total - non_duplicates - multimappers)
-
-# Print everything to file
-for protocol in barcode_groups:
-    with open(args.output + '_' + protocol + '.barcode_groups', 'w') as outfile:
-        for barcode, positions in barcode_groups[protocol].iteritems():
-            outfile.write(protocol + "\t" + barcode + "\t" + "\t".join(positions) + "\n")
-    print "Protocol " + protocol + " has " + str(len(barcode_groups[protocol])) + " barcode groups."
+if __name__ == "__main__":
+    main()
